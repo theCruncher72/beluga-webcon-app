@@ -1,130 +1,292 @@
-const socket = io('/')
-const videoGrid = document.getElementById('video-grid')
-const myPeer = new Peer();
-let myVideoStream;
-const myVideo = document.createElement('video')
+const socket = io('/');  
+const videoGrid = document.getElementById('video-grid');
+const userDropDown = document.getElementById('myDropdown');
+const myVideo = document.createElement('video');
 myVideo.muted = true;
-const peers = {}
-navigator.mediaDevices.getUserMedia({
-  video: true,
-  audio: true
-}).then(stream => {
-  myVideoStream = stream;
-  addVideoStream(myVideo, stream)
-  myPeer.on('call', call => {
-    call.answer(stream)
-    const video = document.createElement('video')
-    call.on('stream', userVideoStream => {
-      addVideoStream(video, userVideoStream)
+let peers = {}, currentPeer = [];
+let userlist= [];
+let cUser;
+
+let YourName = prompt('Type Your Name');
+
+console.log(YourName);
+
+var peer = new Peer();
+let myVideoStream ;
+navigator.mediaDevices.getUserMedia({     
+	video: true,
+	audio: true
+}).then(stream =>{                        
+    addVideoStream(myVideo, stream);
+    myVideoStream = stream;
+
+    peer.on('call', call =>{               
+    	var acceptsCall = confirm("Videocall incoming");
+
+      if(acceptsCall){
+          console.log("answered");        
+    	    call.answer(stream);              
+          const video = document.createElement('video');
+      
+       
+        	call.on('stream', userVideoStream =>{
+               addVideoStream(video, userVideoStream);  
+    	    });
+  
+          currentPeer.push(call.peerConnection);
+
+          call.on('close', function(){
+                video.remove();
+                alert("The videocall has finished");
+          });
+
+       }else{
+        console.log("Call denied !");
+       }
+    });
+
+    socket.on('user-connected', (userId)  =>{   
+      console.log('user ID fetch connection: '+ userId); 
+      connectToNewUser(userId, stream);       
     })
-  })
 
-  socket.on('user-connected',(user_id) => { console.log("Hey someone just Joined" + user_id); setTimeout(connectToNewUser,1000,user_id,stream); //connectToNewUser(user_id,stream);
- });
-  // input value
-  let text = $("input");
-  // when press enter send message
-  $('html').keydown(function (e) {
-    if (e.which == 13 && text.val().length !== 0) {
-      socket.emit('message', text.val());
-      text.val('')
-    }
-  });
-  socket.on("createMessage", message => {
-    $("ul").append(`<li class="message"><b>user</b><br/>${message}</li>`);
-    scrollToBottom()
-  })
+});
+
+
+
+peer.on('open', async id =>{
+   cUser = id; 
+   await socket.emit('join-room', ROOM_ID, id);
+  
 })
 
-socket.on('user-disconnected', userId => {
-  if (peers[userId]) peers[userId].close()
-})
+socket.on('user-disconnected', userId =>{  
+      if(peers[userId]) peers[userId].close();
+      console.log('user ID fetch Disconnect: '+ userId); 
+             
+}); 
 
-myPeer.on('open', id => {
-  socket.emit('join-room', ROOM_ID, id)
-})
 
-function connectToNewUser(userId, stream) {
-  const call = myPeer.call(userId, stream)
-  const video = document.createElement('video')
-  call.on('stream', userVideoStream => {
-    addVideoStream(video, userVideoStream)
-  })
-  call.on('close', () => {
-    video.remove()
-  })
-
-  peers[userId] = call
-}
-
-function addVideoStream(video, stream) {
-  video.srcObject = stream
-  video.addEventListener('loadedmetadata', () => {
-    video.play()
-  })
-  videoGrid.append(video)
+const connectToNewUser = (userId, stream) =>{
+	   console.log('User-connected :-'+userId);
+     let call =  peer.call(userId, stream);       
+     const video = document.createElement('video');
+     call.on('stream', userVideoStream => {
+          addVideoStream(video, userVideoStream);  
+      })
+      call.on('close', () =>{
+      	video.remove()
+      })
+    
+      peers[userId] = call;
+      currentPeer.push(call.peerConnection);
+      console.log(currentPeer);
 }
 
 
+ const addVideoStream = (video, stream) =>{     
+	video.srcObject = stream;
+  video.controls = true;
+	video.addEventListener('loadedmetadata', () =>{
+		video.play();
+	})
+	videoGrid.append(video);
+}
 
-const scrollToBottom = () => {
+
+const muteUnmute = () =>{
+  const enabled = myVideoStream.getAudioTracks()[0].enabled;
+  if (enabled) {
+    myVideoStream.getAudioTracks()[0].enabled = false;
+    setMuteButton();
+  }else{
+    setUnmuteButton();
+    myVideoStream.getAudioTracks()[0].enabled = true;
+  }
+}
+
+const setUnmuteButton = ()=>{
+   const html = `<i class="fas fa-microphone"></i>
+                <span>Mute</span>`;
+   document.querySelector('.Mute__button').innerHTML = html;
+   console.log("You are Unmuted");
+}
+
+const setMuteButton = () =>{
+  const html = `<i class="fas fa-microphone-slash" style="color:red;"></i>
+                <span>Unmute</span>`;
+  document.querySelector('.Mute__button').innerHTML = html;
+  console.log("Muted");
+}
+
+
+const videoOnOff = () =>{
+  const enabled = myVideoStream.getVideoTracks()[0].enabled;
+  if (enabled) {
+    myVideoStream.getVideoTracks()[0].enabled = false;
+    unsetVideoButton();
+  }else{
+    setVideoButton();
+    myVideoStream.getVideoTracks()[0].enabled = true;
+  }
+}
+
+const setVideoButton = ()=>{
+   const html = `<i class="fas fa-video"></i>
+                <span>Stop Video</span>`;
+   document.querySelector('.Video__button').innerHTML = html;
+   console.log("Cammera Mode ON");
+}
+
+const unsetVideoButton = () =>{
+  const html = `<i class="fas fa-video-slash" style="color:red;"></i>
+                <span>Start Video</span>`;
+  document.querySelector('.Video__button').innerHTML = html;
+  console.log("Cammera Mode OFF");
+}
+
+
+const disconnectNow = ()=>{
+    window.location = "https://www.google.com/";   
+}
+
+
+const share =() =>{
+  var share = document.createElement('input'),
+  text = window.location.href;
+  
+  console.log(text);
+  document.body.appendChild(share);
+  share.value = text;
+  share.select();
+  document.execCommand('copy');
+  document.body.removeChild(share);
+  alert('Copied');
+ }
+ //msg sen from user
+let text = $('input');
+
+$('html').keydown((e) =>{
+  if(e.which == 13 && text.val().length !== 0){
+    console.log(text.val());
+    socket.emit('message', text.val(),YourName);
+    text.val('')
+  }
+});
+
+
+socket.on('createMessage', (msg, user) =>{
+  $('ul').append(`<li class= "message"><small>~${user}</small><br>${msg}</li>`);
+  scrollToBottom();
+});
+
+const scrollToBottom = () =>{
   var d = $('.main__chat_window');
   d.scrollTop(d.prop("scrollHeight"));
 }
 
 
-const muteUnmute = () => {
-  const enabled = myVideoStream.getAudioTracks()[0].enabled;
-  if (enabled) {
-    myVideoStream.getAudioTracks()[0].enabled = false;
-    setUnmuteButton();
-  } else {
-    setMuteButton();
-    myVideoStream.getAudioTracks()[0].enabled = true;
+const screenshare = () =>{
+ navigator.mediaDevices.getDisplayMedia({ 
+     video:{
+       cursor:'always'
+     },
+     audio:{
+            echoCancellation:true,
+            noiseSupprission:true
+     }
+
+ }).then(stream =>{
+     let videoTrack = stream.getVideoTracks()[0];
+         videoTrack.onended = function(){
+           stopScreenShare();
+         }
+         for (let x=0;x<currentPeer.length;x++){
+           
+           let sender = currentPeer[x].getSenders().find(function(s){
+              return s.track.kind == videoTrack.kind;
+            })
+            
+            sender.replaceTrack(videoTrack);
+       }
+   
+  })
+  
+ }
+
+function stopScreenShare(){
+  let videoTrack = myVideoStream.getVideoTracks()[0];
+  for (let x=0;x<currentPeer.length;x++){
+          let sender = currentPeer[x].getSenders().find(function(s){
+              return s.track.kind == videoTrack.kind;
+            }) 
+          sender.replaceTrack(videoTrack);
+  }       
+}
+
+
+const raisedHand = ()=>{
+  const sysbol = "&#9995;";
+  socket.emit('message', sysbol, YourName);
+  unChangeHandLogo();
+}
+
+const unChangeHandLogo = ()=>{
+  const html = `<i class="far fa-hand-paper" style="color:red;"></i>
+                <span>Raised</span>`;
+  document.querySelector('.raisedHand').innerHTML = html;
+  console.log("chnage")
+  changeHandLogo();
+}
+
+const changeHandLogo = ()=>{
+  setInterval(function(){
+    const html = `<i class="far fa-hand-paper" style="color:"white"></i>
+                <span>Hand</span>`;
+    document.querySelector('.raisedHand').innerHTML = html;
+  },3030);
+}
+
+socket.on('remove-User', (userId) =>{ 
+  if (cUser == userId) {
+    disconnectNow();
   }
+});
+
+const getUsers = ()=>{ 
+  socket.emit('seruI',); 
+ 
 }
 
-const playStop = () => {
-  console.log('object')
-  let enabled = myVideoStream.getVideoTracks()[0].enabled;
-  if (enabled) {
-    myVideoStream.getVideoTracks()[0].enabled = false;
-    setPlayVideo()
-  } else {
-    setStopVideo()
-    myVideoStream.getVideoTracks()[0].enabled = true;
+const listOfUser = ()=>{
+  while (userDropDown.firstChild) {
+    userDropDown.removeChild(userDropDown.lastChild);
   }
+  for (var i = 0; i < userlist.length; i++) {
+    var x = document.createElement("a");
+    var t = document.createTextNode(`VideoSector ${i+1}`); 
+    x.appendChild(t);
+    userDropDown.append(x);
+  }
+  const anchors = document.querySelectorAll('a');
+  for (let i = 0; i < anchors.length; i++) {
+    anchors[i].addEventListener('click', () => {
+        console.log(`Link is clicked ${i}`);
+        anchoreUser(userlist[i]);
+    });
+  }
+} 
+
+const anchoreUser = (userR)=>{
+  socket.emit('removeUser', cUser, userR);
 }
 
-const setMuteButton = () => {
-  const html = `
-    <i class="fas fa-microphone"></i>
-    <span>Mute</span>
-  `
-  document.querySelector('.main__mute_button').innerHTML = html;
-}
 
-const setUnmuteButton = () => {
-  const html = `
-    <i class="unmute fas fa-microphone-slash"></i>
-    <span>Unmute</span>
-  `
-  document.querySelector('.main__mute_button').innerHTML = html;
-}
-
-const setStopVideo = () => {
-  const html = `
-    <i class="fas fa-video"></i>
-    <span>Stop Video</span>
-  `
-  document.querySelector('.main__video_button').innerHTML = html;
-}
-
-const setPlayVideo = () => {
-  const html = `
-  <i class="stop fas fa-video-slash"></i>
-    <span>Play Video</span>
-  `
-  document.querySelector('.main__video_button').innerHTML = html;
-}
-
+socket.on('all_users_inRoom', (userI) =>{ 
+      console.log(userI);
+      userlist.splice(0,userlist.length);
+      userlist.push.apply(userlist ,userI);
+      console.log(userlist);
+      listOfUser();
+      document.getElementById("myDropdown").classList.toggle("show");
+});
